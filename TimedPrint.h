@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <chrono>
 #include <iostream>
 #include <thread>
@@ -38,6 +39,7 @@ public:
   TimedPrint(const std::string &message,
              std::chrono::duration<double> initial_wait = std::chrono::duration<double>(1),
              std::chrono::duration<double> dot_interval = std::chrono::duration<double>(1))
+      :_printed_anything(false)
   {
     // This is using move assignment
     _thread = std::thread{[message, initial_wait, dot_interval, this]
@@ -45,12 +47,18 @@ public:
         auto done_future = this->_done.get_future();
 
         if (done_future.wait_for(initial_wait) == std::future_status::timeout)
+        {
+          this->_printed_anything = true;
           std::cout << message << std::flush;
+        }
         else
           return;
 
         while (done_future.wait_for(dot_interval) == std::future_status::timeout)
+        {
+          this->_printed_anything = true;
           std::cout << "." << std::flush;
+        }
       }};
   }
 
@@ -66,10 +74,16 @@ public:
     _thread.join();
 
     // Finish the line
-    std::cout << std::endl;
+    if (_printed_anything)
+      std::cout << std::endl;
   }
 
 protected:
+  /// Whether or not anything was printed
+  /// Does NOT need to be atomic because it's
+  /// only accessed after a join()
+  bool _printed_anything;
+
   std::promise<bool> _done;
   std::thread _thread;
 };
