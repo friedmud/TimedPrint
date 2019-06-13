@@ -12,6 +12,7 @@
 #include <chrono>
 #include <iostream>
 #include <thread>
+#include <future>
 
 /**
  * Object to print a message after enough time has passed.
@@ -34,27 +35,30 @@ public:
    * each dot
    */
   TimedPrint(const std::string &message,
-             std::chrono::seconds initial_wait = std::chrono::seconds(1),
-             std::chrono::seconds dot_interval = std::chrono::seconds(1))
-      : _done(false) {
+             std::chrono::duration<double> initial_wait = std::chrono::duration<double>(1),
+             std::chrono::duration<double> dot_interval = std::chrono::duration<double>(1))
+      {
 
     // This is using move assignment
     _thread = std::thread{[message, initial_wait, dot_interval, this] {
-      std::this_thread::sleep_for(initial_wait);
 
-      if (!_done)
+      auto done_future = this->_done.get_future();
+
+      if (done_future.wait_for(initial_wait) == std::future_status::timeout)
         std::cout << message << std::flush;
+      else
+        return;
 
-      while (!this->_done) {
-        std::this_thread::sleep_for(dot_interval);
+      while (done_future.wait_for(dot_interval) == std::future_status::timeout) {
         std::cout << "." << std::flush;
       }
+
     }};
   }
 
   ~TimedPrint() {
     // Tell the thread to end
-    _done = true;
+    _done.set_value(true);
 
     // Wait for it to end
     _thread.join();
@@ -64,6 +68,6 @@ public:
   }
 
 protected:
-  bool _done;
+  std::promise<bool> _done;
   std::thread _thread;
 };
