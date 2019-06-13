@@ -25,6 +25,7 @@
  */
 class TimedPrint final {
 public:
+
   /**
    * Start the timing and printing
    *
@@ -37,26 +38,27 @@ public:
   TimedPrint(const std::string &message,
              std::chrono::duration<double> initial_wait = std::chrono::duration<double>(1),
              std::chrono::duration<double> dot_interval = std::chrono::duration<double>(1))
-      {
-
+  {
     // This is using move assignment
-    _thread = std::thread{[message, initial_wait, dot_interval, this] {
+    _thread = std::thread{[message, initial_wait, dot_interval, this]
+      {
+        auto done_future = this->_done.get_future();
 
-      auto done_future = this->_done.get_future();
+        if (done_future.wait_for(initial_wait) == std::future_status::timeout)
+          std::cout << message << std::flush;
+        else
+          return;
 
-      if (done_future.wait_for(initial_wait) == std::future_status::timeout)
-        std::cout << message << std::flush;
-      else
-        return;
-
-      while (done_future.wait_for(dot_interval) == std::future_status::timeout) {
-        std::cout << "." << std::flush;
-      }
-
-    }};
+        while (done_future.wait_for(dot_interval) == std::future_status::timeout)
+          std::cout << "." << std::flush;
+      }};
   }
 
-  ~TimedPrint() {
+  /**
+   * Stop the printing
+   */
+  ~TimedPrint()
+  {
     // Tell the thread to end
     _done.set_value(true);
 
